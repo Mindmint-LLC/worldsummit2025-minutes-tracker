@@ -125,7 +125,7 @@ def GetData():
     df = df.reset_index(names=['Date'])
     styled_html = StyleDF(df)
 
-    last_update = dt.datetime.now().strftime('%m/%d/%Y, %H:%M:%S')
+    last_update = (dt.datetime.now() + dt.timedelta(hours=-7)).strftime('%m/%d/%Y, %H:%M:%S')
     return styled_html, last_update
 
 
