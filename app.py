@@ -4,6 +4,10 @@ from dbharbor.bigquery import SQL
 from streamlit_authentication.google_oauth import authenticate
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
+import datetime as dt
+
+
+refresh_mins = 5
 
 
 #%%
@@ -77,7 +81,7 @@ def StyleDF(df):
     return html
 
 
-@st.cache_data(ttl=10 * 59)
+@st.cache_data(ttl=refresh_mins * 59)
 def GetData():
     con = SQL()
     sql = '''
@@ -120,7 +124,9 @@ def GetData():
     df = pd.concat([df, dfg_aggr])
     df = df.reset_index(names=['Date'])
     styled_html = StyleDF(df)
-    return styled_html
+
+    last_update = dt.datetime.now().strftime('%m/%d/%Y, %H:%M:%S')
+    return styled_html, last_update
 
 
 #%% Streamlit App
@@ -130,15 +136,16 @@ st.set_page_config(layout="wide")
 
 @authenticate
 def Dashboard():
-    st_autorefresh(interval=10 * 60 * 1000, key="fizzbuzzcounter") # milliseconds
+    st_autorefresh(interval=refresh_mins * 60 * 1000, key="fizzbuzzcounter") # milliseconds
 
     st.title('World Summit 2024')
 
     st.markdown('<br><br>', unsafe_allow_html=True)
     
     st.subheader('Mastermind Business Academy Sales')
-    styled_html = GetData()
+    styled_html, last_update = GetData()
     st.write(styled_html, unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update}<br>Updates Every 5 Minutes Automatically', unsafe_allow_html=True)
 
 
 Dashboard()
