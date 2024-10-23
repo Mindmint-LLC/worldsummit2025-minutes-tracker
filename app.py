@@ -145,7 +145,7 @@ def Dashboard():
     st.subheader('Mastermind Business System Sales')
     styled_html, last_update = GetData()
     st.write(styled_html, unsafe_allow_html=True)
-    st.markdown(f'Last Update: {last_update}<br>Updates Every {refresh_mins} Minutes Automatically', unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update}<br>Updates Every {refresh_mins} Minute(s) Automatically', unsafe_allow_html=True)
 
 
 Dashboard()
