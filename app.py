@@ -7,7 +7,7 @@ import pandas as pd
 import datetime as dt
 
 
-refresh_mins = 5
+refresh_mins = 1
 
 
 #%%
@@ -17,9 +17,9 @@ def StyleDF(df):
     fmt_int = lambda x: '-' if pd.isna(x) or int(x) == 0 else '{:,.0f}'.format(int(x)) if int(x) >= 0 else '({:,.0f})'.format(abs(int(x)))
 
     clmn_format_dict = {}
-    for clmn in ['PIF Cash', '7 Pay Cash', 'Total Cash']:
+    for clmn in ['PIF Cash', '3 Pay Cash', 'Total Cash']:
         clmn_format_dict[clmn] = fmt_cash
-    for clmn in ['PIF Sales', '7 Pay Sales', 'Total Sales']:
+    for clmn in ['PIF Sales', '3 Pay Sales', 'Total Sales']:
         clmn_format_dict[clmn] = fmt_int
 
 
@@ -94,21 +94,21 @@ def GetData():
                 , product
                 , amount
             FROM kbb_evergreen.tracking_orders d
-            WHERE d.dt >= "2024-08-01"
+            WHERE d.dt >= "2024-10-25"
                 and `status` = "paid"
                 and d.product in (
-                    "Mastermind Business Academy",
-                    "Mastermind Business Academy (7 Pay)"
+                    "Mastermind Business System",
+                    "Mastermind Business System 3 Pay"
                 );
     
         """)
     )
 
     select cast(m.dt as date) as `Date`
-        , sum(case when m.product = "Mastermind Business Academy" then 1 else 0 end) as `PIF Sales`
-        , sum(case when m.product = "Mastermind Business Academy" then m.amount else 0 end) as `PIF Cash`
-        , sum(case when m.product = "Mastermind Business Academy (7 Pay)" then 1 else 0 end) as `7 Pay Sales`
-        , sum(case when m.product = "Mastermind Business Academy (7 Pay)" then m.amount else 0 end) as `7 Pay Cash`
+        , sum(case when m.product = "Mastermind Business System" then 1 else 0 end) as `PIF Sales`
+        , sum(case when m.product = "Mastermind Business System" then m.amount else 0 end) as `PIF Cash`
+        , sum(case when m.product = "Mastermind Business System 3 Pay" then 1 else 0 end) as `3 Pay Sales`
+        , sum(case when m.product = "Mastermind Business System 3 Pay" then m.amount else 0 end) as `3 Pay Cash`
         , count(*) as `Total Sales`
         , sum(amount) as `Total Cash`
     from mysql m
@@ -138,14 +138,14 @@ st.set_page_config(layout="wide")
 def Dashboard():
     st_autorefresh(interval=refresh_mins * 60 * 1000, key="fizzbuzzcounter") # milliseconds
 
-    st.title('World Summit 2024')
+    st.title('Secrets to Scaling Sales')
 
     st.markdown('<br><br>', unsafe_allow_html=True)
     
-    st.subheader('Mastermind Business Academy Sales')
+    st.subheader('Mastermind Business System Sales')
     styled_html, last_update = GetData()
     st.write(styled_html, unsafe_allow_html=True)
-    st.markdown(f'Last Update: {last_update}<br>Updates Every 5 Minutes Automatically', unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update}<br>Updates Every {refresh_mins} Minutes Automatically', unsafe_allow_html=True)
 
 
 Dashboard()
