@@ -147,5 +147,8 @@ def Dashboard():
     st.write(styled_html, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update}<br>Updates Every {refresh_mins} Minute(s) Automatically', unsafe_allow_html=True)
 
+    st.markdown('<br>', unsafe_allow_html=True)
+    st.components.v1.iframe('https://docs.google.com/spreadsheets/d/e/2PACX-1vQmzdJsXYWWa4GyZ3fCMYswAFYI-V1qrgxF1zUWYY4GcloVz8SbwBSFgS33i9n9hOdHFfWL7Pv0Vmkq/pubchart?oid=71379020&format=image', width=800, height=500)
+    st.markdown(f'Updates Every Hour Automatically', unsafe_allow_html=True)
 
 Dashboard()
