@@ -1,7 +1,7 @@
 
 import streamlit as st
 from dbharbor.bigquery import SQL
-from streamlit_authentication.google_oauth import authenticate
+# from streamlit_authentication.google_oauth import authenticate
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 import datetime as dt
@@ -134,7 +134,7 @@ def GetData():
 st.set_page_config(layout="wide")
 
 
-@authenticate
+# @authenticate
 def Dashboard():
     st_autorefresh(interval=refresh_mins * 60 * 1000, key="fizzbuzzcounter") # milliseconds
 
