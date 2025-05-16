@@ -9,7 +9,7 @@ import datetime as dt
 
 START_DATE = os.getenv('START_DATE')
 TRACKING_URL = os.getenv('TRACKING_URL')
-REFRESH_MINS= os.getenv('REFRESH_MINS', 1)
+REFRESH_MINS= int(os.getenv('REFRESH_MINS', 1))
 
 
 #%%
