@@ -1,4 +1,5 @@
 
+import os
 import streamlit as st
 from dbharbor.bigquery import SQL
 # from streamlit_authentication.google_oauth import authenticate
@@ -6,8 +7,9 @@ from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 import datetime as dt
 
-
-refresh_mins = 1
+START_DATE = os.getenv('START_DATE')
+TRACKING_URL = os.getenv('TRACKING_URL')
+REFRESH_MINS= os.getenv('REFRESH_MINS', 1)
 
 
 #%%
@@ -81,10 +83,10 @@ def StyleDF(df):
     return html
 
 
-@st.cache_data(ttl=refresh_mins * 59)
+@st.cache_data(ttl=REFRESH_MINS * 59)
 def GetData():
     con = SQL()
-    sql = '''
+    sql = f'''
     with mysql as (
         select *
         FROM EXTERNAL_QUERY("bbg-platform.us.mastermind", """
@@ -94,7 +96,7 @@ def GetData():
                 , product
                 , amount
             FROM kbb_evergreen.tracking_orders d
-            WHERE d.dt >= "2024-10-25"
+            WHERE d.dt >= "{START_DATE}"
                 and `status` = "paid"
                 and d.product in (
                     "Mastermind Business System",
@@ -136,7 +138,7 @@ st.set_page_config(layout="wide")
 
 # @authenticate
 def Dashboard():
-    st_autorefresh(interval=refresh_mins * 60 * 1000, key="fizzbuzzcounter") # milliseconds
+    st_autorefresh(interval=REFRESH_MINS * 60 * 1000, key="fizzbuzzcounter") # milliseconds
 
     st.title('Secrets to Scaling Sales')
 
@@ -145,10 +147,10 @@ def Dashboard():
     st.subheader('Mastermind Business System Sales')
     styled_html, last_update = GetData()
     st.write(styled_html, unsafe_allow_html=True)
-    st.markdown(f'Last Update: {last_update}<br>Updates Every {refresh_mins} Minute(s) Automatically', unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
 
     st.markdown('<br>', unsafe_allow_html=True)
-    st.components.v1.iframe('https://docs.google.com/spreadsheets/d/e/2PACX-1vQmzdJsXYWWa4GyZ3fCMYswAFYI-V1qrgxF1zUWYY4GcloVz8SbwBSFgS33i9n9hOdHFfWL7Pv0Vmkq/pubchart?oid=71379020&format=image', width=800, height=500)
+    st.components.v1.iframe(TRACKING_URL, width=800, height=500)
     st.markdown(f'Updates Every Hour Automatically', unsafe_allow_html=True)
 
 Dashboard()
