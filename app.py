@@ -97,7 +97,7 @@ def GetData():
                     , product
                     , amount
                 FROM kbb_evergreen.tracking_orders d
-                WHERE d.dt >= date_add(NOW(), interval - 2 HOUR)
+                WHERE d.dt >= "{START_DATE}"
                     and `status` = "paid"
                     and d.product in (
                         "Mastermind Business System",
@@ -125,7 +125,8 @@ def GetData():
         , final as (
         select m.*
         from mysql m
-        where m.email not in (
+        where m.dt >= date_add(current_datetime(), interval -2 day)
+            and m.email not in (
             select s.email
             from stripe s
         )
