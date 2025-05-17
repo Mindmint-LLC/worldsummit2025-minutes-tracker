@@ -10,6 +10,7 @@ import datetime as dt
 START_DATE = os.getenv('START_DATE')
 TRACKING_URL = os.getenv('TRACKING_URL')
 REFRESH_MINS= int(os.getenv('REFRESH_MINS', 1))
+TITLE = os.getenv('TITLE', 'Mastermind Business System Sales')
 
 
 #%%
@@ -168,7 +169,7 @@ st.set_page_config(layout="wide")
 def Dashboard():
     st_autorefresh(interval=REFRESH_MINS * 60 * 1000, key="fizzbuzzcounter") # milliseconds
 
-    st.title('Secrets to Scaling Sales')
+    st.title(TITLE)
 
     st.markdown('<br><br>', unsafe_allow_html=True)
     
