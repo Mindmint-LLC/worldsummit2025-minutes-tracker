@@ -84,6 +84,8 @@ def StyleDF(df):
     return html
 
 
+#%%
+
 @st.cache_data(ttl=REFRESH_MINS * 59)
 def GetData():
     con = SQL()
@@ -161,6 +163,83 @@ def GetData():
     return styled_html, last_update
 
 
+#%%
+
+
+@st.cache_data(ttl=REFRESH_MINS * 59)
+def GetData2():
+    con = SQL()
+    sql = f'''
+
+        with mysql as (
+            select *
+            FROM EXTERNAL_QUERY("bbg-platform.us.mastermind", """
+
+                SELECT email
+                    , dt
+                    , product
+                    , amount
+                FROM kbb_evergreen.tracking_orders d
+                WHERE d.dt >= "{START_DATE}"
+                    and `status` = "paid"
+                    and d.product in (
+                        "Mastermind Business System",
+                        "Mastermind Business System 3 Pay"
+                    );
+        
+            """)
+        )
+
+        , stripe as (
+      select s.email
+        , i.invoice_dt as dt
+        , i.product
+        , i.amount_due as amount
+      from `bbg-platform.analytics_stage.int_stripe__invoice` i
+        join `bbg-platform.analytics_stage.int_stripe__subscription_history` s
+          on i.subscription_id = s.subscription_id
+            join `bbg-platform.analytics.dim_products` p
+            on i.product = p.product
+            and p.sub_category = '997 membership'
+        where cast(invoice_dt as date) >= "{START_DATE}"
+            and invoice_status in ('paid')
+        )
+
+        , final as (
+            select m.*
+            from mysql m
+            where cast(m.dt as datetime) >= date_add(current_datetime('America/Phoenix'), interval -30 minute)
+                and m.email not in (
+                select s.email
+                from stripe s
+            )
+        )
+
+        select DATETIME_TRUNC(cast(m.dt as datetime), MINUTE) AS `Date`
+            , sum(case when m.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then 1 else 0 end) as `PIF Sales`
+            , sum(case when m.product in ("Mastermind Business System", "997_yearly") then m.amount else 0 end) as `PIF Cash`
+            , sum(case when m.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then 1 else 0 end) as `3 Pay Sales`
+            , sum(case when m.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then m.amount else 0 end) as `3 Pay Cash`
+            , count(*) as `Total Sales`
+            , sum(amount) as `Total Cash`
+        from final m
+        where analytics.fnEmail_IsTest(m.email) = False
+        group by all
+        order by 1 desc
+    '''
+    df = con.read(sql)
+    df = df.set_index('Date')
+    dfg_aggr = df.sum(axis=0, numeric_only=True)
+    dfg_aggr = pd.DataFrame(dfg_aggr).T
+    dfg_aggr.index = ['Total']
+    df = pd.concat([df, dfg_aggr])
+    df = df.reset_index(names=['Date'])
+    styled_html = StyleDF(df)
+
+    last_update = (dt.datetime.now() + dt.timedelta(hours=-7)).strftime('%m/%d/%Y, %H:%M:%S')
+    return styled_html, last_update
+
+
 #%% Streamlit App
 
 st.set_page_config(layout="wide")
@@ -182,5 +261,10 @@ def Dashboard():
     st.markdown('<br>', unsafe_allow_html=True)
     st.components.v1.iframe(TRACKING_URL, width=800, height=500)
     st.markdown(f'Updates Every Hour Automatically', unsafe_allow_html=True)
+    
+    st.subheader('Mastermind Business System Sales by Minute')
+    styled_html2, last_update2 = GetData2()
+    st.write(styled_html2, unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update2}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
 
 Dashboard()
