@@ -87,36 +87,64 @@ def StyleDF(df):
 def GetData():
     con = SQL()
     sql = f'''
-    with mysql as (
-        select *
-        FROM EXTERNAL_QUERY("bbg-platform.us.mastermind", """
+        with mysql as (
+            select *
+            FROM EXTERNAL_QUERY("bbg-platform.us.mastermind", """
 
-            SELECT email
-                , dt
-                , product
-                , amount
-            FROM kbb_evergreen.tracking_orders d
-            WHERE d.dt >= "{START_DATE}"
-                and `status` = "paid"
-                and d.product in (
-                    "Mastermind Business System",
-                    "Mastermind Business System 3 Pay"
-                );
-    
-        """)
-    )
+                SELECT email
+                    , dt
+                    , product
+                    , amount
+                FROM kbb_evergreen.tracking_orders d
+                WHERE d.dt >= date_add(NOW(), interval - 2 HOUR)
+                    and `status` = "paid"
+                    and d.product in (
+                        "Mastermind Business System",
+                        "Mastermind Business System 3 Pay"
+                    );
+        
+            """)
+        )
 
-    select cast(m.dt as date) as `Date`
-        , sum(case when m.product = "Mastermind Business System" then 1 else 0 end) as `PIF Sales`
-        , sum(case when m.product = "Mastermind Business System" then m.amount else 0 end) as `PIF Cash`
-        , sum(case when m.product = "Mastermind Business System 3 Pay" then 1 else 0 end) as `3 Pay Sales`
-        , sum(case when m.product = "Mastermind Business System 3 Pay" then m.amount else 0 end) as `3 Pay Cash`
-        , count(*) as `Total Sales`
-        , sum(amount) as `Total Cash`
-    from mysql m
-    where analytics.fnEmail_IsTest(m.email) = False
-    group by all
-    order by 1
+        , stripe as (
+      select s.email
+        , i.invoice_dt as dt
+        , i.product
+        , i.amount_due as amount
+      from `bbg-platform.analytics_stage.int_stripe__invoice` i
+        join `bbg-platform.analytics_stage.int_stripe__subscription_history` s
+          on i.subscription_id = s.subscription_id
+            join `bbg-platform.analytics.dim_products` p
+            on i.product = p.product
+            and p.sub_category = '997 membership'
+        where cast(invoice_dt as date) >= "{START_DATE}"
+            and invoice_status in ('paid')
+        )
+
+        , final as (
+        select m.*
+        from mysql m
+        where m.email not in (
+            select s.email
+            from stripe s
+        )
+
+        union all
+
+        select * from stripe
+        )
+
+        select cast(m.dt as date) as `Date`
+            , sum(case when m.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then 1 else 0 end) as `PIF Sales`
+            , sum(case when m.product in ("Mastermind Business System", "997_yearly") then m.amount else 0 end) as `PIF Cash`
+            , sum(case when m.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then 1 else 0 end) as `3 Pay Sales`
+            , sum(case when m.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then m.amount else 0 end) as `3 Pay Cash`
+            , count(*) as `Total Sales`
+            , sum(amount) as `Total Cash`
+        from final m
+        where analytics.fnEmail_IsTest(m.email) = False
+        group by all
+        order by 1
     '''
     df = con.read(sql)
     df = df.set_index('Date')
