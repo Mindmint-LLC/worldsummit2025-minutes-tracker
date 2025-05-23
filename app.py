@@ -104,8 +104,59 @@ def GetData():
         select cast(b.transaction_date as date) as `Date`
             , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.sales else 0 end) as `PIF Sales`
             , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then b.sales else 0 end) as `3 Pay Sales`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then b.amt else 0 end) as `3 Pay Cash`
+            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.sales else 0 end) as `3 Pay Sales`
+            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.amt else 0 end) as `3 Pay Cash`
+            , sum(b.sales) as `Total Sales`
+            , sum(b.amt) as `Total Cash`
+        from base b
+        group by all
+        order by 1
+    '''
+    df = con.read(sql)
+    df = df.set_index('Date')
+    dfg_aggr = df.sum(axis=0, numeric_only=True)
+    dfg_aggr = pd.DataFrame(dfg_aggr).T
+    dfg_aggr.index = ['Total']
+    df = pd.concat([df, dfg_aggr])
+    df = df.reset_index(names=['Date'])
+    styled_html = StyleDF(df)
+
+    last_update = (dt.datetime.now() + dt.timedelta(hours=-7)).strftime('%m/%d/%Y, %H:%M:%S')
+    return styled_html, last_update
+
+
+#%%
+
+@st.cache_data(ttl=REFRESH_MINS * 59)
+def GetDataLastYear():
+    con = SQL()
+    sql = f'''
+        with base as (
+        select t.*
+            , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+        from `bbg-platform.analytics.fct_transactions__live` t
+            join `bbg-platform.analytics.dim_products` p
+            on t.product = p.product
+            and p.sub_category = '997 membership'
+        where cast(t.transaction_date as date) >= '2024-06-14'
+            and t.transaction_date <= date_add(
+                cast('2024-06-14T00:00:00' as datetime),
+                interval
+                date_diff(
+                    current_datetime('America/Phoenix'),
+                    cast('2025-05-16T00:00:00' as datetime),
+                    second
+                )
+                second
+            )
+            and t.amt > 10
+        )
+
+        select cast(b.transaction_date as date) as `Date`
+            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.sales else 0 end) as `3 Pay Sales`
+            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.amt else 0 end) as `3 Pay Cash`
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
@@ -147,8 +198,8 @@ def GetData2():
         select DATETIME_TRUNC(cast(b.transaction_date as datetime), MINUTE) AS `Date`
             , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.sales else 0 end) as `PIF Sales`
             , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then b.sales else 0 end) as `3 Pay Sales`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month") then b.amt else 0 end) as `3 Pay Cash`
+            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.sales else 0 end) as `3 Pay Sales`
+            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.amt else 0 end) as `3 Pay Cash`
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
@@ -184,6 +235,11 @@ def Dashboard():
     
     st.subheader('Mastermind Business System Sales')
     styled_html, last_update = GetData()
+    st.write(styled_html, unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
+    
+    st.subheader('Mastermind Business System Sales - Last Year')
+    styled_html, last_update = GetDataLastYear()
     st.write(styled_html, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
 
