@@ -2,15 +2,14 @@
 import os
 import streamlit as st
 from dbharbor.bigquery import SQL
-# from streamlit_authentication.google_oauth import authenticate
 from streamlit_autorefresh import st_autorefresh
 import pandas as pd
 import datetime as dt
 
-START_DATE = os.getenv('START_DATE')
+START_DATE = os.getenv('START_DATE', '2025-07-24')
 TRACKING_URL = os.getenv('TRACKING_URL')
 REFRESH_MINS= int(os.getenv('REFRESH_MINS', 1))
-TITLE = os.getenv('TITLE', 'Mastermind Business System Sales')
+TITLE = os.getenv('TITLE', 'Mastermind Business Academy Sales')
 
 
 #%%
@@ -20,9 +19,9 @@ def StyleDF(df):
     fmt_int = lambda x: '-' if pd.isna(x) or int(x) == 0 else '{:,.0f}'.format(int(x)) if int(x) >= 0 else '({:,.0f})'.format(abs(int(x)))
 
     clmn_format_dict = {}
-    for clmn in ['PIF Cash', '3 Pay Cash', 'Total Cash']:
+    for clmn in ['PIF Cash', 'PP Cash', 'Total Cash']:
         clmn_format_dict[clmn] = fmt_cash
-    for clmn in ['PIF Sales', '3 Pay Sales', 'Total Sales']:
+    for clmn in ['PIF Sales', 'PP Sales', 'Total Sales']:
         clmn_format_dict[clmn] = fmt_int
 
 
@@ -96,16 +95,17 @@ def GetData():
         from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
-            and p.sub_category = '997 membership'
+            and p.sub_category = 'MBA'
+            and lower(p.product) LIKE '%jumpstart%'
         where cast(t.transaction_date as date) between '{START_DATE}' and DATE_ADD(CAST('{START_DATE}' AS DATE), INTERVAL 30 DAY)
             and t.amt > 10
         )
 
         select cast(b.transaction_date as date) as `Date`
-            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.sales else 0 end) as `PIF Sales`
-            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.sales else 0 end) as `3 Pay Sales`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.amt else 0 end) as `3 Pay Cash`
+            , sum(case when b.product like ("%pif%") then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.product like ("%pif%") then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.product like ("%pp%") then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.product like ("%pp%") then b.amt else 0 end) as `PP Cash`
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
@@ -133,33 +133,38 @@ def GetDataLastYear():
     sql = f'''
         with base as (
         select t.*
-            , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+            , case when row_number() over (partition by t.email order by t.transaction_date) = 1 then 1 else 0 end sales
+            , case when cast(t.transaction_date as date) between '2024-08-01' and DATE_ADD(CAST('2024-08-01' AS DATE), INTERVAL 30 DAY) then 1 end as is_ws24
+            , case when cast(t.transaction_date as date) between '2025-07-27' and DATE_ADD(CAST('2025-07-27' AS DATE), INTERVAL 30 DAY) then 1 end as is_ws25,
+         row_number() over(partition by t.email order by t.transaction_date) as num,
+
+
+
         from `bbg-platform.analytics.fct_transactions__live` t
+
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
-            and p.sub_category = '997 membership'
-        where cast(t.transaction_date as date) >= '2024-06-14'
-            and t.transaction_date <= date_add(
-                cast('2024-06-14T00:00:00' as datetime),
-                interval
-                date_diff(
-                    current_datetime('America/Phoenix'),
-                    cast('2025-05-16T00:00:00' as datetime),
-                    second
-                )
-                second
-            )
-            and t.amt > 10
-        )
+            and p.sub_category = 'MBA'
+            --and lower(p.product) LIKE '%jumpstart%'
+          left join `analytics.fct_transactions` tr
+          on t.invoice_id = tr.invoice_id
+          where t.funnel_id is not null
+          -- and date(t.transaction_date) = '2024-08-24'
+          and tr.order_date > '2024-08-01'
+          
+)
 
         select cast(b.transaction_date as date) as `Date`
-            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.sales else 0 end) as `PIF Sales`
-            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.sales else 0 end) as `3 Pay Sales`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.amt else 0 end) as `3 Pay Cash`
+            , sum(case when b.product like ("%pif%") then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.product like ("%pif%") then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.product like ("%pp%") or b.product like ("%4pay%") then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.product like ("%pp%") or b.product like ("%4pay%") then b.amt else 0 end) as `PP Cash`
             , sum(b.sales) as `Total Sales`
-            , sum(b.amt) as `Total Cash`
+            , sum(b.amt) as `Total Cash`,
+
+
         from base b
+        where is_ws24 = 1
         group by all
         order by 1
     '''
@@ -190,16 +195,17 @@ def GetData2():
         from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
-            and p.sub_category = '997 membership'
+            and p.sub_category = 'MBA'
+            --and lower(p.product) LIKE '%jumpstart%'
         where cast(t.transaction_date as date) between '{START_DATE}' and DATE_ADD(CAST('{START_DATE}' AS DATE), INTERVAL 30 DAY)
             and t.amt > 10
         )
 
         select DATETIME_TRUNC(cast(b.transaction_date as datetime), MINUTE) AS `Date`
-            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.sales else 0 end) as `PIF Sales`
-            , sum(case when b.product in ("Mastermind Business System", "997_yearly", "mm_annual_997_1") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.sales else 0 end) as `3 Pay Sales`
-            , sum(case when b.product in ("Mastermind Business System 3 Pay", "yearly_3_payment_plan_380_per_month", 'mm_annual_380_3') then b.amt else 0 end) as `3 Pay Cash`
+            , sum(case when b.product like ("%pif%") then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.product like ("%pif%") then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.product like ("%pp%") then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.product like ("%pp%") then b.amt else 0 end) as `PP Cash`
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
@@ -233,12 +239,12 @@ def Dashboard():
 
     st.markdown('<br><br>', unsafe_allow_html=True)
     
-    st.subheader('Mastermind Business System Sales')
+    st.subheader('Mastermind Business Academy Sales')
     styled_html, last_update = GetData()
     st.write(styled_html, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
     
-    st.subheader('Mastermind Business System Sales - Last Year')
+    st.subheader('Mastermind Business Academy Sales - Last Year')
     styled_html, last_update = GetDataLastYear()
     st.write(styled_html, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
@@ -247,7 +253,7 @@ def Dashboard():
     st.components.v1.iframe(TRACKING_URL, width=1500, height=600)
     st.markdown(f'Updates Every Hour Automatically', unsafe_allow_html=True)
     
-    st.subheader('Mastermind Business System Sales by Minute Last 30 Minutes')
+    st.subheader('Mastermind Business Academy Sales by Minute Last 30 Minutes')
     styled_html2, last_update2 = GetData2()
     st.write(styled_html2, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update2}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)

@@ -1,2 +1,3 @@
 dbharbor
+streamlit
 streamlit-autorefresh
