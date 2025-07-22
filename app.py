@@ -131,40 +131,36 @@ def GetData():
 def GetDataLastYear():
     con = SQL()
     sql = f'''
-        with base as (
+with base as (
         select t.*
-            , case when row_number() over (partition by t.email order by t.transaction_date) = 1 then 1 else 0 end sales
-            , case when cast(t.transaction_date as date) between '2024-08-01' and DATE_ADD(CAST('2024-08-01' AS DATE), INTERVAL 30 DAY) then 1 end as is_ws24
-            , case when cast(t.transaction_date as date) between '2025-07-27' and DATE_ADD(CAST('2025-07-27' AS DATE), INTERVAL 30 DAY) then 1 end as is_ws25,
-         row_number() over(partition by t.email order by t.transaction_date) as num,
-
-
-
+            , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+            , p.num_payments
         from `bbg-platform.analytics.fct_transactions__live` t
-
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
-            and p.sub_category = 'MBA'
-            --and lower(p.product) LIKE '%jumpstart%'
-          left join `analytics.fct_transactions` tr
-          on t.invoice_id = tr.invoice_id
-          where t.funnel_id is not null
-          -- and date(t.transaction_date) = '2024-08-24'
-          and tr.order_date > '2024-08-01'
-          
-)
+            and p.category = 'Coaching'
+        where cast(t.transaction_date as date) between '2024-08-03' and '2024-08-08'
+            and t.amt > 10
+            and t.transaction_date <= date_add(
+                cast(concat(cast('2024-08-03' as string), 'T00:00:00') as datetime),
+                interval
+                date_diff(
+                    current_datetime('America/Phoenix'),
+                    cast(concat(cast('2025-07-25' as string), 'T00:00:00') as datetime),
+                    second
+                )
+                second
+            )
+        )
 
         select cast(b.transaction_date as date) as `Date`
-            , sum(case when b.product like ("%pif%") then b.sales else 0 end) as `PIF Sales`
-            , sum(case when b.product like ("%pif%") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product like ("%pp%") or b.product like ("%4pay%") then b.sales else 0 end) as `PP Sales`
-            , sum(case when b.product like ("%pp%") or b.product like ("%4pay%") then b.amt else 0 end) as `PP Cash`
+            , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.num_payments = 1 then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Cash`
             , sum(b.sales) as `Total Sales`
-            , sum(b.amt) as `Total Cash`,
-
-
+            , sum(b.amt) as `Total Cash`
         from base b
-        where is_ws24 = 1
         group by all
         order by 1
     '''
