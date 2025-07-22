@@ -141,16 +141,16 @@ with base as (
             and p.category = 'Coaching'
         where cast(t.transaction_date as date) between '2024-08-03' and '2024-08-08'
             and t.amt > 10
-            and t.transaction_date <= date_add(
-                cast(concat(cast('2024-08-03' as string), 'T00:00:00') as datetime),
-                interval
-                date_diff(
-                    current_datetime('America/Phoenix'),
-                    cast(concat(cast('2025-07-25' as string), 'T00:00:00') as datetime),
-                    second
-                )
-                second
-            )
+            -- and t.transaction_date <= date_add(
+            --     cast(concat(cast('2024-08-03' as string), 'T00:00:00') as datetime),
+            --     interval
+            --     date_diff(
+            --         current_datetime('America/Phoenix'),
+            --         cast(concat(cast('2025-07-25' as string), 'T00:00:00') as datetime),
+            --         second
+            --     )
+            --     second
+            -- )
         )
 
         select cast(b.transaction_date as date) as `Date`
