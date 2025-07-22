@@ -185,29 +185,29 @@ def GetData2():
     con = SQL()
     sql = f'''
 
-        with base as (
-        select t.*
-            , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
-        from `bbg-platform.analytics.fct_transactions__live` t
+with base as (
+select t.*
+    , p.num_payments
+    , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
-            and p.sub_category = 'MBA'
-            --and lower(p.product) LIKE '%jumpstart%'
-        where cast(t.transaction_date as date) between '{START_DATE}' and DATE_ADD(CAST('{START_DATE}' AS DATE), INTERVAL 30 DAY)
-            and t.amt > 10
-        )
+            and p.category = 'Coaching'
+where cast(t.transaction_date as date) between '2025-07-25' and '2025-07-30'
+    and t.amt > 10
+)
 
-        select DATETIME_TRUNC(cast(b.transaction_date as datetime), MINUTE) AS `Date`
-            , sum(case when b.product like ("%pif%") then b.sales else 0 end) as `PIF Sales`
-            , sum(case when b.product like ("%pif%") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product like ("%pp%") then b.sales else 0 end) as `PP Sales`
-            , sum(case when b.product like ("%pp%") then b.amt else 0 end) as `PP Cash`
-            , sum(b.sales) as `Total Sales`
-            , sum(b.amt) as `Total Cash`
-        from base b
-        where cast(b.transaction_date as datetime) >= date_add(current_datetime('America/Phoenix'), interval -30 minute)
-        group by all
-        order by 1
+select DATETIME_TRUNC(cast(b.transaction_date as datetime), MINUTE) AS `Date`
+    , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
+    , sum(case when b.num_payments = 1 then b.amt else 0 end) as `PIF Cash`
+    , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Pay Sales`
+    , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Pay Cash`
+    , sum(b.sales) as `Total Sales`
+    , sum(b.amt) as `Total Cash`
+from base b
+where cast(b.transaction_date as datetime) >= date_add(current_datetime('America/Phoenix'), interval -60 minute)
+group by all
+order by 1 desc
     '''
     df = con.read(sql)
     df = df.set_index('Date')
@@ -249,7 +249,7 @@ def Dashboard():
     st.components.v1.iframe(TRACKING_URL, width=1500, height=600)
     st.markdown(f'Updates Every Hour Automatically', unsafe_allow_html=True)
     
-    st.subheader('Mastermind Business Academy Sales by Minute Last 30 Minutes')
+    st.subheader('Mastermind Business Academy Sales by Minute Last Hour')
     styled_html2, last_update2 = GetData2()
     st.write(styled_html2, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update2}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
