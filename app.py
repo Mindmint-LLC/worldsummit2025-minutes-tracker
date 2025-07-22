@@ -92,20 +92,20 @@ def GetData():
         with base as (
         select t.*
             , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+            , p.num_payments
         from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
-            and p.sub_category = 'MBA'
-            and lower(p.product) LIKE '%jumpstart%'
-        where cast(t.transaction_date as date) between '{START_DATE}' and DATE_ADD(CAST('{START_DATE}' AS DATE), INTERVAL 30 DAY)
+            and p.category = 'Coaching'
+        where cast(t.transaction_date as date) between '2025-07-25' and '2025-07-30'
             and t.amt > 10
         )
 
         select cast(b.transaction_date as date) as `Date`
-            , sum(case when b.product like ("%pif%") then b.sales else 0 end) as `PIF Sales`
-            , sum(case when b.product like ("%pif%") then b.amt else 0 end) as `PIF Cash`
-            , sum(case when b.product like ("%pp%") then b.sales else 0 end) as `PP Sales`
-            , sum(case when b.product like ("%pp%") then b.amt else 0 end) as `PP Cash`
+            , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.num_payments = 1 then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Cash`
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
