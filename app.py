@@ -89,16 +89,22 @@ def StyleDF(df):
 def GetData():
     con = SQL()
     sql = f'''
-        with base as (
+ with base as (
         select t.*
-            , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+            , case when row_number() over (partition by t.id_order order by t.transaction_date) = 1 then 1 else 0 end sales
             , p.num_payments
         from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
             and p.category = 'Coaching'
-        where cast(t.transaction_date as date) between '2025-07-25' and '2025-07-30'
-            and t.amt > 10
+        where t.amt > 10
+        )
+
+        , orders as (
+            select b.id_order
+            from base b
+            where sales = 1
+                and cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
         )
 
         select cast(b.transaction_date as date) as `Date`
@@ -109,6 +115,9 @@ def GetData():
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
+            join orders d
+                on b.id_order = d.id_order
+        where cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
         group by all
         order by 1
     '''
@@ -185,17 +194,24 @@ def GetData2():
     con = SQL()
     sql = f'''
 
-with base as (
-select t.*
-    , p.num_payments
-    , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
-from `bbg-platform.analytics.fct_transactions__live` t
+       with base as (
+        select t.*
+            , case when row_number() over (partition by t.id_order order by t.transaction_date) = 1 then 1 else 0 end sales
+            , p.num_payments
+        from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
             and p.category = 'Coaching'
-where cast(t.transaction_date as date) between '2025-07-25' and '2025-07-30'
-    and t.amt > 10
-)
+        where t.amt > 10
+        )
+
+        , orders as (
+            select b.id_order
+            from base b
+            where sales = 1
+                and cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
+        )
+
 
 select DATETIME_TRUNC(cast(b.transaction_date as datetime), MINUTE) AS `Date`
     , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
