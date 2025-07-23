@@ -150,7 +150,7 @@ with base as (
             --         second
             --     )
             --     second
-            -- )
+            --- )
         )
 
         select cast(b.transaction_date as date) as `Date`
