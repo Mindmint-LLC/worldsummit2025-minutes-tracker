@@ -98,13 +98,14 @@ def GetData():
             on t.product = p.product
             and p.category = 'Coaching'
         where t.amt > 10
+        and lower(t.product) not like '%renewal%'
         )
 
         , orders as (
             select b.id_order
             from base b
             where sales = 1
-                and cast(b.transaction_date as date) between '2025-07-24' and '2025-07-30'
+                and cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
         )
 
         select cast(b.transaction_date as date) as `Date`
@@ -117,8 +118,7 @@ def GetData():
         from base b
             join orders d
                 on b.id_order = d.id_order
-        where cast(b.transaction_date as date) between '2025-07-24' and '2025-07-30'
-        and b.id_order not in ('263078239425','259027239151')
+        where cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
         group by all
         order by 1
     '''
@@ -150,6 +150,16 @@ with base as (
             on t.product = p.product
             and p.category = 'Coaching'
         where t.amt > 10
+            and t.transaction_date <= date_add(
+                cast(concat(cast('2024-08-03' as string), 'T00:00:00') as datetime),
+                interval
+                date_diff(
+                    current_datetime('America/Phoenix'),
+                    cast(concat(cast('2025-07-25' as string), 'T00:00:00') as datetime),
+                    second
+                )
+                second
+            )
         )
 
         , orders as (
@@ -203,6 +213,7 @@ def GetData2():
             on t.product = p.product
             and p.category = 'Coaching'
         where t.amt > 10
+        and lower(t.product) not like '%renewal%'
         )
 
         , orders as (
@@ -237,7 +248,60 @@ order by 1 desc
     last_update = (dt.datetime.now() + dt.timedelta(hours=-7)).strftime('%m/%d/%Y, %H:%M:%S')
     return styled_html, last_update
 
+#%%
 
+@st.cache_data(ttl=REFRESH_MINS * 59)
+def GetData5():
+    con = SQL()
+    sql = f'''
+ with base as (
+        select t.*
+            , case when row_number() over (partition by t.id_order order by t.transaction_date) = 1 then 1 else 0 end sales
+            , p.num_payments
+        from `bbg-platform.analytics.fct_transactions__live` t
+            join `bbg-platform.analytics.dim_products` p
+            on t.product = p.product
+            and p.category = 'Coaching'
+        where t.amt > 10
+        and lower(t.product) like '%renewal%'
+        )
+
+        , orders as (
+            select b.id_order
+            from base b
+            where sales = 1
+                and cast(b.transaction_date as date) between '2025-07-24' and '2025-07-30'
+        )
+
+        select cast(b.transaction_date as date) as `Date`
+            , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.num_payments = 1 then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Cash`
+            , sum(b.sales) as `Total Sales`
+            , sum(b.amt) as `Total Cash`
+        from base b
+            join orders d
+                on b.id_order = d.id_order
+        where cast(b.transaction_date as date) between '2025-07-24' and '2025-07-30'
+        and b.id_order not in ('263078239425','259027239151')
+        group by all
+        order by 1
+    '''
+    df = con.read(sql)
+    df = df.set_index('Date')
+    dfg_aggr = df.sum(axis=0, numeric_only=True)
+    dfg_aggr = pd.DataFrame(dfg_aggr).T
+    dfg_aggr.index = ['Total']
+    df = pd.concat([df, dfg_aggr])
+    df = df.reset_index(names=['Date'])
+    styled_html = StyleDF(df)
+
+    last_update = (dt.datetime.now() + dt.timedelta(hours=-7)).strftime('%m/%d/%Y, %H:%M:%S')
+    return styled_html, last_update
+
+
+#%%
 #%% Streamlit App
 
 st.set_page_config(layout="wide")
@@ -267,6 +331,11 @@ def Dashboard():
     
     st.subheader('Mastermind Business Academy Sales in the Last Hour')
     styled_html2, last_update2 = GetData2()
+    st.write(styled_html2, unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update2}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
+
+    st.subheader('Mastermind Business Academy Alumni Renewal Sales')
+    styled_html2, last_update2 = GetData5()
     st.write(styled_html2, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update2}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
 
