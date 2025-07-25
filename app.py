@@ -143,24 +143,20 @@ def GetDataLastYear():
     sql = f'''
 with base as (
         select t.*
-            , case when row_number() over (partition by t.subscription_id order by t.transaction_date) = 1 then 1 else 0 end sales
+            , case when row_number() over (partition by t.id_order order by t.transaction_date) = 1 then 1 else 0 end sales
             , p.num_payments
         from `bbg-platform.analytics.fct_transactions__live` t
             join `bbg-platform.analytics.dim_products` p
             on t.product = p.product
             and p.category = 'Coaching'
-        where cast(t.transaction_date as date) between '2024-08-03' and '2024-08-08'
-            and t.amt > 10
-            -- and t.transaction_date <= date_add(
-            --     cast(concat(cast('2024-08-03' as string), 'T00:00:00') as datetime),
-            --     interval
-            --     date_diff(
-            --         current_datetime('America/Phoenix'),
-            --         cast(concat(cast('2025-07-25' as string), 'T00:00:00') as datetime),
-            --         second
-            --     )
-            --     second
-            --- )
+        where t.amt > 10
+        )
+
+        , orders as (
+            select b.id_order
+            from base b
+            where sales = 1
+                and cast(b.transaction_date as date) between '2024-08-03' and '2024-08-08'
         )
 
         select cast(b.transaction_date as date) as `Date`
@@ -171,6 +167,9 @@ with base as (
             , sum(b.sales) as `Total Sales`
             , sum(b.amt) as `Total Cash`
         from base b
+            join orders d
+                on b.id_order = d.id_order
+        where cast(b.transaction_date as date) between '2024-08-03' and '2024-08-08'
         group by all
         order by 1
     '''
@@ -217,8 +216,8 @@ def GetData2():
 select DATETIME_TRUNC(cast(b.transaction_date as datetime), MINUTE) AS `Date`
     , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
     , sum(case when b.num_payments = 1 then b.amt else 0 end) as `PIF Cash`
-    , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Pay Sales`
-    , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Pay Cash`
+    , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Sales`
+    , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Cash`
     , sum(b.sales) as `Total Sales`
     , sum(b.amt) as `Total Cash`
 from base b
@@ -266,7 +265,7 @@ def Dashboard():
     st.components.v1.iframe(TRACKING_URL, width=1500, height=600)
     st.markdown(f'Updates Every Hour Automatically', unsafe_allow_html=True)
     
-    st.subheader('Mastermind Business Academy Sales by Minute Last Hour')
+    st.subheader('Mastermind Business Academy Sales in the Last Hour')
     styled_html2, last_update2 = GetData2()
     st.write(styled_html2, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update2}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
