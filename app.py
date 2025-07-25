@@ -198,6 +198,58 @@ with base as (
 
 #%%
 
+@st.cache_data(ttl=REFRESH_MINS * 59)
+def GetDataLastYear_all():
+    con = SQL()
+    sql = f'''
+with base as (
+        select t.*
+            , case when row_number() over (partition by t.id_order order by t.transaction_date) = 1 then 1 else 0 end sales
+            , p.num_payments
+        from `bbg-platform.analytics.fct_transactions__live` t
+            join `bbg-platform.analytics.dim_products` p
+            on t.product = p.product
+            and p.category = 'Coaching'
+        where t.amt > 10
+        )
+
+        , orders as (
+            select b.id_order
+            from base b
+            where sales = 1
+                and cast(b.transaction_date as date) between '2024-08-03' and '2024-08-08'
+        )
+
+        select cast(b.transaction_date as date) as `Date`
+            , sum(case when b.num_payments = 1 then b.sales else 0 end) as `PIF Sales`
+            , sum(case when b.num_payments = 1 then b.amt else 0 end) as `PIF Cash`
+            , sum(case when b.num_payments > 1 then b.sales else 0 end) as `PP Sales`
+            , sum(case when b.num_payments > 1 then b.amt else 0 end) as `PP Cash`
+            , sum(b.sales) as `Total Sales`
+            , sum(b.amt) as `Total Cash`
+        from base b
+            join orders d
+                on b.id_order = d.id_order
+        where cast(b.transaction_date as date) between '2024-08-03' and '2024-08-08'
+        group by all
+        order by 1
+    '''
+    df = con.read(sql)
+    df = df.set_index('Date')
+    dfg_aggr = df.sum(axis=0, numeric_only=True)
+    dfg_aggr = pd.DataFrame(dfg_aggr).T
+    dfg_aggr.index = ['Total']
+    df = pd.concat([df, dfg_aggr])
+    df = df.reset_index(names=['Date'])
+    styled_html = StyleDF(df)
+
+    last_update = (dt.datetime.now() + dt.timedelta(hours=-7)).strftime('%m/%d/%Y, %H:%M:%S')
+    return styled_html, last_update
+
+
+
+#%%
+
 
 @st.cache_data(ttl=REFRESH_MINS * 59)
 def GetData2():
@@ -322,6 +374,11 @@ def Dashboard():
     
     st.subheader('Mastermind Business Academy Sales - Last Year')
     styled_html, last_update = GetDataLastYear()
+    st.write(styled_html, unsafe_allow_html=True)
+    st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
+
+    st.subheader('Mastermind Business Academy Sales - Last Year')
+    styled_html, last_update = GetDataLastYear_all()
     st.write(styled_html, unsafe_allow_html=True)
     st.markdown(f'Last Update: {last_update}<br>Updates Every {REFRESH_MINS} Minute(s) Automatically', unsafe_allow_html=True)
 
