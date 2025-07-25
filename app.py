@@ -104,7 +104,7 @@ def GetData():
             select b.id_order
             from base b
             where sales = 1
-                and cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
+                and cast(b.transaction_date as date) between '2025-07-24' and '2025-07-30'
         )
 
         select cast(b.transaction_date as date) as `Date`
@@ -117,7 +117,8 @@ def GetData():
         from base b
             join orders d
                 on b.id_order = d.id_order
-        where cast(b.transaction_date as date) between '2025-07-25' and '2025-07-30'
+        where cast(b.transaction_date as date) between '2025-07-24' and '2025-07-30'
+        and b.id_order not in ('263078239425','259027239151')
         group by all
         order by 1
     '''
